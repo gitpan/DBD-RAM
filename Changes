@@ -6,6 +6,16 @@ Documentation and most recent version available on CPAN, and at:
 
 Revision history for Perl extension DBD::RAM.
 
+Version 0.072, 25th May, 2000
+
+ * Fixed bug in interpreting eol for USR data type
+
+ * Fixed problems in POD (bad head3, wrong USR info)
+
+Version 0.071, 24th May, 2000
+
+ * Uploaded again because of failed CPAN upload
+
 Version 0.07, 24th May, 2000
 
  * Greatly expanded support for XML and for User-Defined formats
@@ -18,7 +28,6 @@ Version 0.07, 24th May, 2000
  * Added remote-file support via LWP for additional file formats
 
  * Added ability to specify alternate field and record separator patterns
-   similar to the way DBD::CSV operates
 
  * Added convenience names TAB and PIPE to support tab and pipe
    "delimited" files.

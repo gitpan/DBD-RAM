@@ -398,7 +398,6 @@ sub import() {
         @col_names = @{$data->{NAME}};
         my $sth_new = &prep_insert( $dbh, $table_name, @col_names );
         while (my @datarow = $data->fetchrow_array) {
-#print "@datarow\n";
             $sth_new->execute(@datarow);
         }
         die "No data in table $table_name!" 
@@ -408,7 +407,7 @@ sub import() {
     ####################################################################
     # GET COLUMN NAMES
     ####################################################################
-    if (!ref $data) { my @tmp = split ( $eol, $data ); $data = \@tmp; }
+    if (!ref $data) { my @tmp = split ( /$eol/m, $data ); $data = \@tmp; }
     my $first_line;
     if ($col_names eq 'first_line'
       && $data_type ne 'HASH' ) { $first_line = shift @{$data}; }
@@ -892,7 +891,6 @@ sub fetch_row ($$$) {
   	    $fields = delete($self->{cached_row});
         } else {
 	    local $/ = $catalog->{eol} || "\n";
-	    #local $/ = $csv->{'eol'};
 	    #$fields = $csv->getline($self->{'fh'});
 	    my $fh =  $self->{'fh'} ;
             my $line = $fh->getline || return undef;
@@ -1530,7 +1528,7 @@ these additional parameters.  They should be passed as a hashref:
         [ 'table2', 'INI',   'test_db.ini',{col_names => 'id,phrase,name' ],
      ],'catalog');
 
-=cut
+In future releases, users will be able to store catalogs in files for permanent associations between files and data types.
 
 =head2 Specifying file and directory names
 
@@ -1776,7 +1774,9 @@ parameter attributes.
 
 See below for details.
 
-=head3 XML Import
+=over 4
+
+=item XML Import
 
  To start with a very simple example, consider this XML string:
 
@@ -1844,7 +1844,8 @@ rely on automatic default column names (col1,col2,etc.) or on reading
 the column names from the "first line" of the data as you can with
 most other data types.
 
-=head3 Alternate relationships between XML tags & database columns
+
+=item Alternate relationships between XML tags & database columns
 
 If you want the database column names to be different from the XML tag
 names, you need to add a col_mapping parameter which should be a hash
@@ -1933,7 +1934,7 @@ e.g:
   Joe         | OR       | 1998 1999
   Sally       | WA       | 1998 1999 2000
 
-=head3 Nested attributes that apply to multiple records
+=item Nested attributes that apply to multiple records
 
 It is also possible to use nested record attributes to create column
 values that apply to multiple records.  Consider the following XML:
@@ -2012,7 +2013,7 @@ For example:
                  'office^'  => 'location',
                  'office^^' => 'manager',
 
-=head3 Character Encoding and Unicode issues
+=item Character Encoding and Unicode issues
 
 The attr key can be used to pass extra information to XML::Parser when
 it imports a database.  For example, if the XML file contains latin-1
@@ -2045,7 +2046,7 @@ UTF-8 to Latin-1 as the values are inserted in the database, that is
 to say, a shortcut for the two keys mentioned above.
 
 
-=head3 Other features of XML import
+=item Other features of XML import
 
 * Tags, attributes, and text that are not specifically referred to in
 the import() parameters are ignored when creating the database table.
@@ -2055,7 +2056,7 @@ in the XML source, a column will be created in the database for that
 name and it will be given a default value of NULL for each record
 created.
 
-=head3 XML Export
+=item XML Export
 
 Any DBD::RAM table, regardless of its original source or its original
 format, can be exported to an XML file.
@@ -2110,6 +2111,7 @@ The module does not currently support exporting tag attributes or
 "folding out" nested column information, but those are planned for
 future releases.
 
+back
 
 =head2 USER-DEFINED DATA STRUCTURES
 
@@ -2124,7 +2126,7 @@ example that works with data separated by double tildes.  In reality,
 you could just do this with the bulit-in CSV type, but here is how you
 could recreate it with the USR type:
 
- $dbh->func({       
+ $dbh->func({
       data_type   => 'USR',
       data_source => "1~~2~~3\n4~~5~~6\n",
       read_sub    => sub { split /~~/,shift },
@@ -2158,7 +2160,7 @@ into three fields for town, state, and zip.
     data_type   => 'USR',
     data_source => join('',<DATA>),
     col_names   => 'name,street,town,state,zip',
-    eol         => '/^\s*$/',
+    eol         => '^\s*\n',
     read_sub    => sub {
         my($name,$street,$stuff) = split "\n", $_[0];
         my @ary   = split ' ',$stuff;
