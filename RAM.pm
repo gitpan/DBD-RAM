@@ -26,7 +26,7 @@ use Text::ParseWords;
 
 use vars qw($VERSION $err $errstr $sqlstate $drh $ramdata);
 
-$VERSION = '0.05';
+$VERSION = '0.06';
 
 $err       = 0;        # holds error code   for DBI::err
 $errstr    = "";       # holds error string for DBI::errstr
@@ -92,6 +92,24 @@ $DBD::RAM::db::imp_data_size = 0;
 sub disconnect{ undef $DBD::RAM::ramdata;}
 
 # DRIVER PRIVATE METHODS
+
+sub dump {
+   my $dbh = shift;
+   my $sql = shift;
+   my $txt;
+   my $sth = $dbh->prepare($sql);
+   $sth->execute;
+   while (my @row = $sth->fetchrow_array) {
+       for (@row) {
+           $_ |= '';
+           s/^\s*//;
+           s/\s*$//;
+           $txt .=  "[$_] ";
+       }
+       $txt .= "\n";
+   }
+   return $txt;
+}
 
 sub get_catalog {
     my $self  = shift;
@@ -186,12 +204,22 @@ sub import() {
     my $col_names  = $specs->{col_names}  || '';
     my $pattern    = $specs->{pattern}    || '';
     my $parser     = $specs->{parser}     || '';
+    my $r = $DBD::RAM::ramdata;
     if ($data_type eq 'MP3' ) {
-#      use Data::Dumper; print Dumper $specs; exit;
         $data_type = 'FIX';
         $col_names = 'file_name,song_name,artist,album,year,comment,genre',
         $pattern   = 'A255 A30 A30 A30 A4 A30 A50',
-        $data      = &get_music_library( $specs->{dirs} )
+        $data      = &get_music_library( $specs )
+    }
+    if ($data_type eq 'XML' ) {
+        my $colstr;
+        for ( @{$col_names} ) { $colstr .= $_ . ' TEXT,'; }
+        $colstr =~ s/,$//;
+        my $sql = "CREATE TABLE $table_name ($colstr)";
+        $dbh->do($sql);
+        $data = &get_xml_db( $specs, $table_name, $dbh );
+        $r->{$table_name}->{data_type} = $data_type;
+        return;
     }
     my($colstr,@col_names,$num_params);
     if ( $col_names ) {
@@ -268,11 +296,47 @@ sub import() {
             $sth->execute(@datarow);
         }
     }
-    my $r = $DBD::RAM::ramdata;
     $r->{$table_name}->{data_type} = $data_type;
     $r->{$table_name}->{pattern}   = $pattern;
     $r->{$table_name}->{parser}    = $parser;
 
+}
+
+sub get_xml_db {
+# Hat tip to Randal Schwartz for the XML/LWP stuff
+    my($specs,$table_name,$dbh) = @_;
+    my $remote_source = $specs->{remote_source} || '';
+    my $file_source   = $specs->{file_source} || '';
+    my $data_source   = $specs->{data_source} || '';
+    my $record_tag    = $specs->{record_tag} || '';
+    my $col_tags      = $specs->{col_tags} || '';
+    my $col_mapping   = $specs->{col_mapping} || '';
+    my $col_names     = $specs->{col_names} || '';
+    my $data;
+    my @columns = @{$col_names};
+    if ($remote_source) {
+        undef $@;
+        eval{ require 'LWP/Simple.pm' };
+        die "LWP::Simple module not found! $@" if $@;
+        $data = LWP::Simple::get($remote_source);
+    }
+    if ($file_source) {
+        open(I,$file_source) || die "[$file_source]: $!\n";
+        local $/ = undef;
+        $data = <I>;
+        close(I)  || die "$file_source: $!\n";
+    }
+    if ($data_source) {
+        $data = $data_source;
+    }
+    die "No file or data source supplied!" unless $data;
+    my $insert = $dbh->prepare("INSERT INTO $table_name (".
+                              (join ", ", @columns).
+                              ") VALUES (".
+                              (join ",", ("?") x @columns).")");
+    My_XML_Parser::doParse($data, $insert, $record_tag,
+                           $col_names, $col_mapping);
+    #use Data::Dumper; print Dumper $DBD::RAM::ramdata; exit;
 }
 
 sub read_fields {
@@ -350,7 +414,8 @@ sub write_fields {
 }
 
 sub get_music_library {
-    my @dirs = @{$_[0]};
+    my $specs = shift;
+    my @dirs = @{$specs->{dirs}};
     my @db;
     for my $dir(@dirs) {
         my @files = get_music_dir( $dir );
@@ -659,6 +724,61 @@ sub truncate ($$) {
     return DBD::File::Table::truncate( $self, $data );
 }
 
+package My_XML_Parser;
+  my @state;
+  my %one_group_data;
+  my $insert_handle;
+  my $record_tag;
+  my @columns;
+  my %column_mapping;
+
+  sub doParse {
+    my $data = shift;
+    $insert_handle = shift;
+    $record_tag = shift;
+    my $col_names = shift;
+    my $col_map = shift || '';
+    @columns = @{$col_names};
+    if ($col_map) { %column_mapping = %{$col_map}; }
+    else {%column_mapping = map{ $_ => $_ } @columns; }
+    undef $@;
+    eval{ require 'XML/Parser.pm' };
+    die "XML::Parser module not found! $@" if $@;
+    XML::Parser->new(Style => 'Stream')->parse($data);
+  }
+
+  sub StartTag {
+    my ($parser, $type) = @_;
+    my %attrs = %_;
+    push @state, $type;
+    if ("@state" eq $record_tag) {
+      %one_group_data = ();
+    }
+    for (keys %attrs) {
+        my $place = $column_mapping{$_};
+        if (defined $place) {
+          $one_group_data{$place} .= $attrs{$_};
+        }
+    }
+  }
+
+  sub EndTag {
+    my ($parser, $type) = @_;
+    if ("@state" eq $record_tag) {
+      $insert_handle->execute(@one_group_data{@columns});
+    }
+    pop @state;
+  }
+
+  sub Text {
+    my $field = "@state";
+    $field =~ s/^$record_tag\s*//;
+    my $place = $column_mapping{$field};
+    if (defined $place) {
+      $one_group_data{$place} .= $_;
+    }
+  }
+
 
 ############################################################################
 1;
@@ -666,7 +786,7 @@ __END__
 
 =head1 NAME
 
- DBD::RAM - a DBI driver for in-memory data structures
+ DBD::RAM - a DBI driver for files and data structures
 
 =head1 SYNOPSIS
 
@@ -689,7 +809,7 @@ __END__
  DBD::RAM allows you to import almost any type of Perl data
  structure into an in-memory table and then use DBI and SQL
  to access and modify it.  It also allows direct access to
- almost any kind of flat file, supporting SQL manipulation
+ almost any kind of file, supporting SQL manipulation
  of the file without converting the file out of its native
  format.
 
@@ -703,24 +823,30 @@ __END__
  most purposes, mix and match these differnt kinds of tables
  within a script.
 
- Currently the following table types are supported:
+Tables may be created from these kinds of files:
 
     FIX   fixed-width record files
-    CSV   comma separated values files
+    CSV   comma separated values (or other "delimited") files
     INI   name=value .ini files
-    XML   XML files (limited support)
-    MP3   MP3 music files!
-    RAM   in-memory tables including ones created using:
-            'ARRAY' array of arrayrefs
-            'HASH'  array of hashrefs
-            'CSV'   array of comma-separated value strings
-            'INI'   array of name=value strings
-            'FIX'   array of fixed-width record strings
-            'STH'   statement handle from a DBI database
-            'USR'   array of user-defined data structures
+    XML   XML files (requires XML::Parser)
+    MP3   MP3 music files! (reads the ID3v1 tags)
+
+And these kinds of data structures
+
+    ARRAY array of arrayrefs
+    HASH  array of hashrefs
+    CSV   array of comma-separated value strings
+    INI   array of name=value strings
+    FIX   array of fixed-width record strings
+    DBI   statement handle from a DBI database
+    USR   array of user-defined data structures
 
  With a data type of 'USR', you can pass a pointer to a subroutine
  that parses the data, thus making the module very extendable.
+
+ With data type of XML you can specify either local or remote files.  
+ If remote, and if you have LWP installed, DBD::RAM will create the 
+ database table by first fetching the data from the remote location.
 
 =head1 WARNING
 
@@ -954,7 +1080,7 @@ __END__
  This module now supports working with several different kinds of flat
  files and will soon support many more varieties.  Currently supported are
  fixed-width record files, comma separated values files, name=value ini
- files, and (with limited support) XML files.  See below for details
+ files, and  XML files.  See below for details
 
  To work with these kinds of files, you must first enter the table in a
  catalog specifying the table name, file name, file type, and optionally
@@ -970,11 +1096,11 @@ __END__
                ]])
 
  For example this sets up a catalog with three tables of type CSV, FIX, and
- XML:
+ INI:
 
     $dbh->func([
         ['my_csv', 'CSV', 'my_db.csv'],
-        ['my_xml', 'XML', 'my_db.xml',{col_names=>'idCol,testCol'}],
+        ['my_ini', 'INI', 'my_db.ini',{col_names=>'idCol,testCol'}],
         ['my_fix', 'FIX', 'my_db.fix',{pattern=>'a1 a25'}],
     ],'catalog' );
 
@@ -986,8 +1112,8 @@ __END__
  SQL statements operating on $table_name will actually be carried out on
  $file_name.  Thus, given the example catalog above, 
  "CREATE TABLE my_csv ..." will create a file called 'my_db.csv' and
- "SELECT * FROM my_xml" will open and read data from a file called
- 'my_db.xml'.
+ "SELECT * FROM my_ini" will open and read data from a file called
+ 'my_db.ini'.
 
  In all cases the files will be expected to be located in the directory
  named in the $dbh->{f_dir} parameter (similar to in DBD::CSV).  This
@@ -1019,23 +1145,81 @@ __END__
  Column names may be specified on the first line of the file (as a
  comma separated list), or in the catalog.
 
-=head2 XML FILES
+=head2 XML
 
- Column names *must* be specified in the catalog.  Currently this module
- does not provide full support for XML files.  The feature is included
- here as a "proof of concept" experiment and will be made more robust in
- future releases.  Only a limited subset of XML is currently supported:
- files can contain tags only as specified in the catalog columns list and
- the tags must be in the same order as that list. All tags for a given
- record must occur on the same line.  The parsing routine for the tags
- is very simple minded in this release and is probably easily broken.
- In future releases, XML::Parser will be required and will replace the
- regular expression currently used.
+ You must have XML::Parser installed in order to use the XML feature of
+ DBD::RAM.  If you wish to use remote XML files, you also need the LWP
+ module installed.
 
- Here is a sample XML file that would currently work with this module:
+ As an example, there is a file called slashdot.xml which is kept at
+ www.slashdot.org and is structured like this:
 
-    <name>jeff</name><state>oregon</state>
-    <name>joe</name><state>new york</state>
+   <?xml version="1.0" ?>
+    <backslash xmlns:backslash="http://slashdot.org/backslash.dtd">
+      <story>
+        <title>Neal Stephenson on Digital Village</title>
+        <url>http://slashdot.org/article.pl?sid=00/04/21/126206</url>
+        <time>2000-04-23 23:06:22</time>
+        <author>Hemos</author>
+        <department>good-listen</department>
+        <topic>news</topic>
+        <comments>85</comments>
+        <section>articles</section>
+        <image>topicnews.gif</image>
+      </story>
+      <story> ...</story>
+    <backslash>
+  </xml>
+
+ You can import this into a DBD::RAM table, with this one command:
+
+  $dbh->func({
+      remote_source => 'http://www.slashdot.org/slashdot.xml',
+      data_type     => 'XML',
+      record_tag    => 'backslash story',
+      col_names     => [title,url,time,author,department,
+                       topic,comments,section,image]
+  },'import');
+
+  Notice that the "record_tag" is a space separated list of all of the tags
+  that enclose the fields you want to capture starting at the highest level
+  with the <backslash> tag.  In this case the names of the database fields
+  are the same as the XML tags.  If the two lists are different (for example
+  if the XML tag names are not legitimate SQL column names), you can specify
+  an additional attribute called "col_mapping" which should be a hashref
+  with the keys of the hash the XML tag names and the values, the table
+  column names.  E.G.:
+
+     col_mappings => { Article_Title =>'title', Article_URL=>'url' ...}
+
+  That would use "Article_Title" as the database column name but keep the
+  same XML tags as listed in the col_names attribute.
+
+  If the XML file is local rather than remote, simply omit the remote_source
+  attribute and put in
+
+       file_source => $full_path_to_local_XML_file,
+
+  If the XML is from a string rather than a file, simple omit the remote_source
+  attribute and put in
+
+       data_source => $xml_string,
+
+  DBD::RAM treats tag attributes as fields, just like it treats tag text
+  so the following three records are exactly the same:
+
+    <quiz>
+      <question id='1' Q='An orange is blue.' A='F'/>
+      <question id='1'>
+        <Q>An orange is blue.</Q>
+        <A>F</A>
+      </question>
+      <question>
+        <id>1</id>
+        <Q>An orange is blue.</Q>
+        <A>F</A>
+      </question>
+    </quiz>
 
 =head1 USING MULTIPLE TABLES
 
@@ -1047,11 +1231,13 @@ __END__
 =head1 TO DO
 
  Lots of stuff.  An export() method -- dumping the data from in-memory
- tables back into files.  More robust support for XML files.  Support for
- a variety of other easily parsed formats such as Mail files, web logs.
- Support for HTML files with the directory considered as a table, each
- HTML file considered as a record and the filename, <TITLE> tag, and
- <BODY> tags considered as fields.
+ tables back into files.  Support for a variety of other easily parsed
+ formats such as Mail files, web logs.  Support for HTML files with
+ the directory considered as a table, each HTML file considered as a
+ record and the filename, <TITLE> tag, and <BODY> tags considered as
+ fields.  More robust SQL (coming when I update Statement.pm)
+ including RLIKE (a regex-based LIKE), joins, alter table, typed fields?,
+ authorization mechanisms?  transactions?
 
  Let me know what else...
 

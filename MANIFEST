@@ -3,4 +3,6 @@ Makefile.PL
 MANIFEST
 RAM.pm
 README
+demo/portal.cgi  Sample of LWP and XML support
+demo/mp3.pl      Sample of MP3 support
 test.pl

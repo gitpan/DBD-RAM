@@ -6,6 +6,44 @@ Documentation and most recent version available on CPAN, and at:
 
 Revision history for Perl extension DBD::RAM.
 
+ * Added support for XML::Parser and LWP.  The module can now use 
+   XML::Parser to read XML files and import them into database tables.
+   It can also use LWP to fetch the files from remote locations.  
+   Here's the complete code to build an on-the-fly, in-memory 
+   database table accessible with DBI and SQL from the latest 
+   news XML file on slashdot:
+
+   $dbh->func({
+       remote_source => 'http://www.slashdot.org/slashdot.xml',
+       data_type     => 'XML',
+       record_tag    => 'backslash story',
+       col_names     => [title,url,time,author,department,
+                        topic,comments,section,image]
+   },'import');
+
+ If the XML is a local file rather than a remote file, simply
+ substitute "file_source => $fullpath" for the "remote_source"
+ attribute or if it is from a string rather than a file, change it to
+ "data_source => $xml_string".
+
+ Supports tags at any depth of nesting and supports both text and tag 
+ attributes as fields, e.g., these two are equivalent:
+
+       <quiz_item id='1' question='Is the sky blue?' answer='Yes'/>
+
+       <quiz_item>
+          <id>1</id>
+          <question>Is the sky blue?</question>
+          <answer>Yes</answer>
+       </quiz_item>
+
+ * Updated POD documentation
+
+ * Added a demo directory, currently containing portal.cgi, a demo of 
+   support for XML and LWP; and mp3.pl, a demo of support for MP3 music
+   files.
+
+
 Version 0.05, 20th April, 2000
 
  * Added support for mp3 music files!  You can now create and 
@@ -93,4 +131,3 @@ Version 0.02,  8th March, 2000
 Version 0.01,  7th March, 2000
 
  * original version; handles in-memory DBI access to arrays of arrays
-
