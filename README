@@ -1,362 +1,89 @@
-NAME
-     DBD::RAM - a DBI driver for in-memory data structures
+README FILE FOR PERL MODULE -- DBD::RAM
 
-SYNOPSIS
-     # This sample creates a database, inserts a record, then reads
-     # the record and prints it.  The output is "Hello, new world!"
-     #
+WHY USE IT?
+
+     This module lets you quickly create and test databases 
+     using SQL (Structured Query Language) and DBI 
+     (the Perl Database Interface).
+
+     Beginners can learn some basics of SQL and DBI without
+     needing to install or learn a database management system
+     like mySQL or Oracle.
+
+     Advanced users can prototype new databases; test queries
+     on existing data; combine data from multiple DBI-accessible
+     databases or various kinds of storage such as fixed-width 
+     records, comma-separated values files, .ini files, XML files,
+     and other flat (ascii) files; pull in arrays and hashes from 
+     other scripts; and use it when in-memory processing is an 
+     advantage.
+
+WHAT ELSE DO I NEED?
+
+     * An operating system that can run DBI
+       (unix, linux, mac, windows, many others).
+
+     * Perl and these modules:  DBI, DBD::File, SQL::Statement.
+       (DBD::File is part of the DBD::CSV distibution)
+
+     Windows users: get Perl and the modules at 
+     www.activestate.com.
+
+     Others: get perl at www.perl.com and the modules at 
+     www.cpan.org.
+
+HOW DO I INSTALL IT?
+
+     1.  Install Perl and the modules DBI, DBD::CSV, and 
+         SQL::Statement (if you don't already have them).
+
+     2.  Unpack the compressed files.
+         (DBD-RAM-version.tar.gz or DBD-RAM-version.zip)
+
+     3a. If you are not familiar with the standard Perl
+         makefile method, you can simply copy the file 
+         RAM.pm into your DBD directory.
+  
+     3b. If you are familiar with the standard Perl make 
+         installation, just do as always (perl Makefile.PL; 
+         make; make test; make install) this should also 
+         work with dmake or nmake. 
+
+HOW DO I USE IT?
+
+     First you might like to try this simple script which 
+     creates a database and inserts the string "hello new world"
+     into a record  and then uses SQL to retrieve the record and 
+     print it:
+
+     #!perl -w
+     use strict;
      use DBI;
-     my $dbh = DBI->connect( 'DBI:RAM:' );
-     $dbh->func( [<DATA>], 'import' );
-     print $dbh->selectrow_array('SELECT col2 FROM table1');
-     __END__
-     1,"Hello, new world!",sample
+     my $dbh = DBI->connect('DBI:RAM:');
+     $dbh->do("CREATE TABLE table1 ( message TEXT )");
+     $dbh->do("INSERT INTO table1 VALUES ('Hello new world!')");
+     print $dbh->selectrow_array("SELECT message FROM table1");
 
-     All syntax supported by SQL::Statement and all methods supported
-     by DBD::CSV are also supported, see their documentation for 
-     details.
 
-DESCRIPTION
-     DBD::RAM allows you to import almost any type of Perl data
-     structure into an in-memory table and then use DBI and SQL
-     to access and modify it.  It also allows direct access to
-     almost any kind of flat file, supporting SQL manipulation
-     of the file without converting the file out of its native
-     format.
+WHERE CAN I GET MORE INFO?
 
-     The module allows you to prototype a database without having an
-     rdbms system or other database engine and can operate either with 
-     or without creating or reading disk files.
+     After installing the module, type "perldoc DBD::RAM" at 
+     the command prompt, or just read the documentation at 
+     the bottom of the RAM.pm file.
 
-     DBD::RAM works with three differnt kinds of tables: tables
-     stored only in memory, tables stored in flat files, and tables
-     stored in various DBI-accessible databases.  Users may, for
-     most purposes, mix and match these differnt kinds of tables
-     within a script.
+     For help on the use of DBD::RAM, see the DBI users 
+     mailing list:
 
-     Currently the following table types are supported:
+          http://www.isc.org/dbi-lists.html
 
-        FIX   fixed-width record files
-        CSV   comma separated values files
-        INI   name=value .ini files
-        XML   XML files (limited support)
-        RAM   in-memory tables including ones created using:
-                'ARRAY' array of arrayrefs
-                'HASH'  array of hashrefs
-                'CSV'   array of comma-separated value strings
-                'INI'   array of name=value strings
-                'FIX'   array of fixed-width record strings
-                'STH'   statement handle from a DBI database
-                'USR'   array of user-defined data structures
+     For general information on DBI see
 
-     With a data type of 'USR', you can pass a pointer to a subroutine
-     that parses the data, thus making the module very extendable.
+          http://www.symbolstone.org/technology/perl/DBI
 
-WARNING
-     This module is in a rapid development phase and it is likely to
-     change quite often for the next few days/weeks.  I will try to keep
-     the interface as stable as possible, but if you are going to start
-     using this in places where it will be difficult to modify, you might
-     want to ask me about the stabilitiy of the features you are using.
+WHO DUNNIT?
 
-INSTALLATION & PREREQUISITES
-     This module should work on any any platform that DBI works on.
+  Jeff Zucker <jeff@vpservices.com>
 
-     You don't need an external SQL engine or a running server, or a
-     compiler.  All you need are Perl itself and installed versions of DBI
-     and SQL::Statement. If you do *not* also have DBD::CSV installed you
-     will need to either install it, or simply copy File.pm into your DBD
-     directory.
-
-     For this first release, there is no makefile, just copy RAM.pm
-     into your DBD direcotry.
-
-WORKING WITH IN-MEMORY DATABASES
-  CREATING TABLES
-
-     In-memory tables may be created using standard CREATE/INSERT
-     statements, or using the DBD::RAM specific import method:
-
-        $dbh->func( $spec, $data, 'import' );
-
-     The $spec parameter is a hashref containg:
-
-         table_name   a string holding the name of the table
-          col_names   a string with column names separated by commas
-          data_type   one of: array, hash, etc. see below for full list
-            pattern   a string containing an unpack pattern (fixed-width only)
-             parser   a pointer to a parsing subroutine (user only)
-
-     The $data parameter is a an arrayref containing an array of the type
-     specified in the $spec{data_type} parameter holding the actual table
-     data.
-
-     Data types for the data_type parameter currently include: ARRAY, HASH,
-     FIX (fixed-width), CSV, INI (name=value), DBI, and USR. See below for
-     examples of each of these types.
-
-      $dbh->func(
-        {
-          table_name => 'phrases',
-          table_type => 'CSV',
-          col_names  => 'id,phrase''
-        }
-        [
-          qq{1,"Hello, new world!"},
-          qq{2,"Junkity Junkity Junk"},
-        ],'import' );
-
-     $dbh->func(
-         {
-           data_type    => 'ARRAY',
-             table_name => 'phrases',
-             col_names  => 'id,phrase',
-         },
-         [
-           [1,'Hello new world!'],
-           [2,'Junkity Junkity Junk'],
-         ],
-     'import' );
-
-     $dbh->func(
-         { table_name => 'phrases',
-           col_names  => 'id,phrase',
-           data_type  => 'HASH',
-         },
-         [
-           {id=>1,phrase=>'Hello new world!'},
-           {id=>2,phrase=>'Junkity Junkity Junk'},
-         ],
-     'import' );
-
-     $dbh->func(
-         { table_name => 'phrases',    # ARRAY OF NAME=VALUE PAIRS
-           col_names  => 'id,phrase',
-           data_type  => 'INI',
-         },
-         [
-           '1=2Hello new world!',
-           '2=Junkity Junkity Junk',
-         ],
-     'import' );
-
-     $dbh->func(
-         { table_name => 'phrases',
-           col_names  => 'id,phrase',
-           data_type  => 'FIX',
-           pattern    => 'a1 a20',
-         },
-         [
-           '1Hello new world!    ',
-           '2Junkity Junkity Junk',
-         ],
-     'import' );
-
-     The $spec{pattern} value should be a string describing the fixed-width
-     record.  See the Perl documentation on "unpack()" for details.
-
-     You can import information from any other DBI accessible database with
-     the data_type set to 'sth' in the import() method.  First connect to the
-     other database via DBI and get a database handle for it separate from the
-     database handle for DBD::RAM.  Then do a prepare and execute to get a
-     statement handle for a SELECT statement into that database.  Then pass the
-     statement handle to the DBD::RAM import() method which will perform the
-     fetch and insert the fetched fields and records into the DBD::RAM table.
-     After the import() statement, you can then close the database connection
-     to the other database.
-
-     Here's an example using DBD::CSV --
-
-      my $dbh_csv = DBI->connect('DBI:CSV:','','',{RaiseError=>1});
-      my $sth_csv = $dbh_csv->prepare("SELECT * FROM mytest_db");
-      $sth_csv->execute();
-      $dbh->func(
-          { table_name => 'phrases',
-            col_names  => 'id,phrase',
-            data_type  => 'DBI',
-          },
-          [$sth_csv],
-          'import'
-      );
-      $dbh_csv->disconnect();
-
-     $dbh->func(
-        { table_name => 'phrases',    # USER DEFINED STRUCTURE
-          col_names  => 'id,phrase',
-          data_type  => 'USR',
-          parser     => sub { split /=/,shift },
-        },
-        [
-            '1=Hello new world!',
-            '2=Junkity Junkity Junk',
-        ],
-     'import' );
-
-     This example shows a way to implement a simple name=value parser.
-     The subroutine can be as complex as you like however and could, for
-     example, call XML or HTML or other parsers, or do any kind of fetches
-     or massaging of data (e.g. put in some LWP calls to websites as part
-     of the data massaging).  [Note: the actual name=value implementation
-     in the DBD uses a slightly more complex regex to be able to handle equal
-     signs in the value.]
-
-     The parsing subroutine must accept a row of data in the user-defined
-     format and return it as an array.  Basically, the import() method
-     will cycle through the array of data, and for each element in its
-     array, it will send that element to your parser subroutine.  The
-     parser subroutine should accept an element in that format and return
-     an array with the elements of the array in the same order as the
-     column names you specified in the import() statement.  In the example
-     above, the sub accepts a string and returns and array.
-
-     PLEASE NOTE: If you develop generally useful parser routines that others
-     might also be able to use, send them to me and I can encorporate them
-     into the DBD itself.
-
-     You may also create tables with standard SQL syntax using CREATE
-     TABLE and INSERT statements.  Or you can create a table with the
-     import method and later populate it using INSERT statements.  Howver
-     the table is created, it can be modified and accessed with all SQL
-     syntax supported by SQL::Statement.
-
-  USING DEFAULTS FOR QUICK PROTOTYPING
-
-     If no table type is supplied, an in-memory type 'RAM' will be
-     assumed.  If no table_name is specified, a numbered table name
-     will be supplied (table1, or if that exists table2, etc.).  The
-     same also applies to column names (col1, col2, etc.).  If no
-     data_type is supplied, CSV will be assumed. If the $spec parameter
-     to import is missing, then defaults for all values will be used.
-     Thus, the two statements below have the same effect:
-
-        $dbh->func( [
-            qq{1,"Hello, new world!"},
-            qq{2,"Junkity Junkity Junk"},
-            ],'import' );
-
-        $dbh->func(
-            {
-                table_name => table1,
-                table_type => 'CSV',
-                col_names  => 'col1,col2'
-            }
-            [
-              qq{1,"Hello, new world!"},
-              qq{2,"Junkity Junkity Junk"},
-            ],'import' );
-
-WORKING WITH FLAT FILES
-     This module now supports working with several different kinds of flat
-     files and will soon support many more varieties.  Currently supported are
-     fixed-width record files, comma separated values files, name=value ini
-     files, and (with limited support) XML files.  See below for details
-
-     To work with these kinds of files, you must first enter the table in a
-     catalog specifying the table name, file name, file type, and optionally
-     other information.
-
-     Catalogs are created with the $dbh->func('catalog') command.
-
-         $dbh->func([[
-                      $table_name,
-                      $table_type,
-                      $file_name,
-                      {optional params}
-                   ]])
-
-     For example this sets up a catalog with three tables of type CSV, FIX, and
-     XML:
-
-        $dbh->func([
-            ['my_csv', 'CSV', 'my_db.csv'],
-            ['my_xml', 'XML', 'my_db.xml',{col_names=>'idCol,testCol'}],
-            ['my_fix', 'FIX', 'my_db.fix',{pattern=>'a1 a25'}],
-        ],'catalog' );
-
-     Optional parameters include col_names -- if the column names are not
-     specified with this parameter, then the module will look for the column
-     names as a comma-separated list on the first line of the file.
-
-     A table only needs to be entered into the catlog once.  After that all
-     SQL statements operating on $table_name will actually be carried out on
-     $file_name.  Thus, given the example catalog above, 
-     "CREATE TABLE my_csv ..." will create a file called 'my_db.csv' and
-     "SELECT * FROM my_xml" will open and read data from a file called
-     'my_db.xml'.
-
-     In all cases the files will be expected to be located in the directory
-     named in the $dbh->{f_dir} parameter (similar to in DBD::CSV).  This
-     parameter may be specified in the connect() statement as part of the
-     DSN, or may be changed later with $dbh->{f_dir} = $directory, at any
-     point later.  If no f_dir is specified, the current working directory
-     of the script will be assumed.
-
-  CSV FILES
-
-     This works similarly to DBD::CSV (which you may want to use instead
-     if you are only working with CSV files).  It supports specifying the
-     column names either in the catalog statement, or as the first line of
-     the file.  It does not yet support delimiters other than commas or
-     end of file characters other than newlines.
-
-  FIXED WIDTH RECORD FILES
-
-     Column names may be specified on the first line of the file (as a
-     comma separated list), or in the catalog.  A pattern must be specified
-     listing the widths of the fields in the catalog.  The pattern should
-     be in Perl unpack format e.g. "a2 a7 a14" would indicate a table with
-     three columns with widths of 2,7,14 characters.  When data is inserted
-     or updated, it will be truncated or padded to fill exactly the amount
-     of space alloted to each field.
-
-  NAME=VALUE INI FILES
-
-     Column names may be specified on the first line of the file (as a
-     comma separated list), or in the catalog.
-
-  XML FILES
-
-     Column names *must* be specified in the catalog.  Currently this module
-     does not provide full support for XML files.  The feature is included
-     here as a "proof of concept" experiment and will be made more robust in
-     future releases.  Only a limited subset of XML is currently supported:
-     files can contain tags only as specified in the catalog columns list and
-     the tags must be in the same order as that list. All tags for a given
-     record must occur on the same line.  The parsing routine for the tags
-     is very simple minded in this release and is probably easily broken.
-     In future releases, XML::Parser will be required and will replace the
-     regular expression currently used.
-
-     Here is a sample XML file that would currently work with this module:
-
-        <name>jeff</name><state>oregon</state>
-        <name>joe</name><state>new york</state>
-
-USING MULTIPLE TABLES
-     A single script can create as many tables as your RAM will support and you
-     can have multiple statement handles open to the tables simultaneously. This
-     allows you to simulate joins and multi-table operations by iterating over
-     several statement handles at once.
-
-TO DO
-     Lots of stuff.  An export() method -- dumping the data from in-memory
-     tables back into files.  More robust support for XML files.  Support for
-     a variety of other easily parsed formats such as Mail files, web logs.
-     Support for HTML files with the directory considered as a table, each
-     HTML file considered as a record and the filename, <TITLE> tag, and
-     <BODY> tags considered as fields.
-
-     Let me know what else...
-
-AUTHOR
-     Jeff Zucker <jeff@vpservices.com>
-
-         Copyright (c) 2000 Jeff Zucker. All rights reserved. This program is
-         free software; you can redistribute it and/or modify it under the same
-         terms as Perl itself as specified in the Perl README file.
-
-         This is alpha software, no warranty of any kind is implied.
-
-SEE ALSO
-     DBI, DBD::CSV, SQL::Statement
-
+  Feel free to email me comments and suggestions, but please
+  post questions requiring a response to the dbi-users mailing
+  list(see above).

@@ -1,10 +1,22 @@
-DBD::RAM - a DBI driver for in-memory data structures
+DBD::RAM - a DBI driver for in-memory and file data
 
-Documentation and most recent version available at:
+Documentation and most recent version available on CPAN, and at:
 
     http://www.vpservices.com/jeff/programs/dbd-ram.html
 
 Revision history for Perl extension DBD::RAM.
+
+Version 0.05, 20th April, 2000
+
+ * Added support for mp3 music files!  You can now create and 
+   search an on-the-fly database of mp3 files.  Just feed it a
+   list of directories where you store mp3 files and DBD::RAM 
+   will automagically create an in-memory table with each file 
+   as a record containing the fields:  file_name, song_name, 
+   artist, album, year, comment,genre. The fields will be filled
+   in automatically from the ID3v1 header information in the mp3 
+   file itself, assuming, of course, that the mp3 file contains a 
+   valid ID3v1 header.
 
 Version 0.042,  17th April, 2000
 

@@ -26,7 +26,7 @@ use Text::ParseWords;
 
 use vars qw($VERSION $err $errstr $sqlstate $drh $ramdata);
 
-$VERSION = '0.042';
+$VERSION = '0.05';
 
 $err       = 0;        # holds error code   for DBI::err
 $errstr    = "";       # holds error string for DBI::errstr
@@ -97,6 +97,10 @@ sub get_catalog {
     my $self  = shift;
     my $tname = shift || '';
     my $catalog = $DBD::RAM::ramdata->{catalog}{$tname} || {};
+    $catalog->{f_type}   |= '';
+    $catalog->{f_name}    |= '';
+    $catalog->{pattern}   |= '';
+    $catalog->{col_names} |= '';
     return $catalog;
 }
 
@@ -163,18 +167,32 @@ sub import() {
     my $dbh   = shift;
     my $specs = shift;
     my $data  = shift;
-    if ($specs && ! $data) { $data = $specs; $specs = {}; }
+    if ($specs && ! $data ) {
+        if (ref $specs eq 'ARRAY' ) {
+            $data = $specs; $specs = {};
+        }
+        else {
+	    $data = [];
+	}
+    }
     if (ref $specs ne 'HASH') {
         die 'First argument to "import" must be a hashref.';
     }
     if (ref $data ne 'ARRAY') {
         die 'Second argument to "import" must be an arrayref.';
     }
-    my $data_type  = $specs->{data_type}  || 'CSV';
+    my $data_type  = uc $specs->{data_type}  || 'CSV';
     my $table_name = $specs->{table_name} || $dbh->func('get_table_name');
     my $col_names  = $specs->{col_names}  || '';
     my $pattern    = $specs->{pattern}    || '';
     my $parser     = $specs->{parser}     || '';
+    if ($data_type eq 'MP3' ) {
+#      use Data::Dumper; print Dumper $specs; exit;
+        $data_type = 'FIX';
+        $col_names = 'file_name,song_name,artist,album,year,comment,genre',
+        $pattern   = 'A255 A30 A30 A30 A4 A30 A50',
+        $data      = &get_music_library( $specs->{dirs} )
+    }
     my($colstr,@col_names,$num_params);
     if ( $col_names ) {
         $col_names =~ s/\s+//g;
@@ -265,7 +283,8 @@ sub read_fields {
     my $catalog = $dbh->func($tname,'get_catalog');
     chomp $str;
     if ($type eq 'CSV') {
-        my @fields =  Text::ParseWords::parse_line( ',', 0, $str );
+        my $sep_char = $catalog->{sep_char} || ',';
+        my @fields =  Text::ParseWords::parse_line( $sep_char, 0, $str );
         return @fields;
     }
     if ($type eq 'FIX') {
@@ -330,6 +349,49 @@ sub write_fields {
     return $fieldStr;
 }
 
+sub get_music_library {
+    my @dirs = @{$_[0]};
+    my @db;
+    for my $dir(@dirs) {
+        my @files = get_music_dir( $dir );
+        for my $fname(@files) {
+            push @db, &get_mp3_tag($fname)
+        }
+    }
+    return \@db;
+}
+
+sub get_music_dir {
+    my $dir  = shift;
+    opendir(D,$dir) || print "$dir: $!\n";
+    return '' if $!;
+    my @files = grep /mp3$/i, readdir D;
+    @files = map ( $_ = $dir . $_, @files);
+    closedir(D) || print "Couldn't read '$dir':$!";
+    return @files;
+}
+
+sub get_mp3_tag {
+    my($file)   = shift;
+    open(I,$file) || return '';
+    binmode I;
+    local $/ = '';
+    seek I, -128, 2;
+    my $str = <I> || '';
+    return '' if !($str =~ /^TAG/);
+    $file = sprintf("%-255s",$file);
+    $str =~ s/^TAG(.*)/$file$1/;
+    my $genre = $str;
+    $genre =~ s/^.*(.)$/$1/g;
+    $str =~ s/(.)$//g;
+    $genre = unpack( 'C', $genre );
+my @genres =("Blues", "Classic Rock", "Country", "Dance", "Disco", "Funk", "Grunge", "Hip-Hop", "Jazz", "Metal", "New Age", "Oldies", "Other", "Pop", "R&B", "Rap", "Reggae", "Rock", "Techno", "Industrial", "Alternative", "Ska", "Death Metal", "Pranks", "Soundtrack", "Eurotechno", "Ambient", "Trip-Hop", "Vocal", "Jazz+Funk", "Fusion", "Trance", "Classical", "Instrumental", "Acid", "House", "Game", "Sound Clip", "Gospel", "Noise", "Alternative Rock", "Bass", "Soul", "Punk", "Space", "Meditative", "Instrumental Pop", "Instrumental Rock", "Ethnic", "Gothic", "Darkwave", "Techno-Industrial", "Electronic", "Pop-Folk", "Eurodance", "Dream", "Southern Rock", "Comedy", "Cult", "Gangsta", "Top 40", "Christian Rap", "Pop/Funk", "Jungle", "Native American", "Cabaret", "New Wave", "Psychadelic", "Rave", "Show Tunes", "Trailer", "Lo-Fi", "Tribal", "Acid Punk", "Acid Jazz", "Polka", "Retro", "Musical", "Rock & Roll", "Hard Rock", "Folk", "Folk/Rock", "National Folk", "Swing", "Fast-Fusion", "Bebop", "Latin", "Revival", "Celtic", "Bluegrass", "Avantgarde", "Gothic Rock", "Progressive Rock", "Psychedelic Rock", "Symphonic Rock", "Slow Rock", "Big Band", "Chorus", "Easy Listening", "Acoustic", "Humour", "Speech", "Chanson", "Opera", "Chamber Music", "Sonata", "Symphony", "Booty Bass", "Primus", "Porn Groove", "Satire", "Slow Jam", "Club", "Tango", "Samba", "Folklore", "Ballad", "Power Ballad", "Rhytmic Soul", "Freestyle", "Duet", "Punk Rock", "Drum Solo", "Acapella", "Euro-House", "Dance Hall", "Goa", "Drum & Bass", "Club-House", "Hardcore", "Terror", "Indie", "BritPop", "Negerpunk", "Polsk Punk", "Beat", "Christian Gangsta Rap", "Heavy Metal", "Black Metal", "Crossover", "Contemporary Christian", "Christian Rock", "Unknown");
+    $genre = $genres[$genre] || '';
+    $str .= $genre . "\n";
+    return $str;
+}
+
+
 # END OF DRIVER PRIVATE METHODS
 
 sub table_info ($) {
@@ -378,6 +440,8 @@ sub open_table ($$$$$) {
     my($table);
     my $dbh     = $data->{Database};
     my $catalog = $dbh->func($tname,'get_catalog');
+#    if( $catalog->{f_type} && $catalog->{f_type} eq 'DBM' ) {
+#    }
     if( !$catalog->{f_type} || $catalog->{f_type} eq 'RAM' ) {
         if ($createMode && !($DBD::RAM::ramdata->{$tname}) ) {
   	    if (exists($data->{$tname})) {
@@ -412,6 +476,7 @@ sub open_table ($$$$$) {
             $line =~ s/[\015\012]//g;
             # READ COLUMN NAMES AS COMMA-SEPARATED LIST
             @col_names = $dbh->func($line,$tname,'CSV','read_fields');
+	    # for (@col_names) {print "[$_]";} exit;
 	    $table->{first_row_pos} = $fh->tell();
 	}
         my $count = 0;
@@ -458,7 +523,7 @@ sub fetch_row ($$$) {
         if (exists($self->{cached_row})) {
   	    $fields = delete($self->{cached_row});
         } else {
-	    local $/ = "\n";
+	    local $/ = $catalog->{eol} || "\n";
 	    #local $/ = $csv->{'eol'};
 	    #$fields = $csv->getline($self->{'fh'});
 	    my $fh =  $self->{'fh'} ;
@@ -644,6 +709,7 @@ __END__
     CSV   comma separated values files
     INI   name=value .ini files
     XML   XML files (limited support)
+    MP3   MP3 music files!
     RAM   in-memory tables including ones created using:
             'ARRAY' array of arrayrefs
             'HASH'  array of hashrefs
@@ -772,6 +838,20 @@ __END__
 
  The $spec{pattern} value should be a string describing the fixed-width
  record.  See the Perl documentation on "unpack()" for details.
+
+=head3 From directories containing MP3 MUSIC FILES
+
+ $dbh->func(
+     { data_type => 'MP3', dirs => $dirlist}, import
+ )
+
+ $dirlist should be an reference to an array of absolute paths to
+ directories containing mp3 files.  Each file in those directories
+ will become a record containing the fields:  file_name, song_name,
+ artist, album, year, comment,genre. The fields will be filled
+ in automatically from the ID3v1x header information in the mp3 file
+ itself, assuming, of course, that the mp3 file contains a
+ valid ID3v1x header.
 
 =head3 From another DBI DATABASE
 
