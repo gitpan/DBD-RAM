@@ -21,13 +21,12 @@ use strict;
 require DBD::File;
 require SQL::Statement;
 require SQL::Eval;
-#use IO::File;
-use Filehandle;
+use IO::File;
 use Text::ParseWords;
 
 use vars qw($VERSION $err $errstr $sqlstate $drh $ramdata);
 
-$VERSION = '0.04';
+$VERSION = '0.042';
 
 $err       = 0;        # holds error code   for DBI::err
 $errstr    = "";       # holds error string for DBI::errstr

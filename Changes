@@ -6,6 +6,10 @@ Documentation and most recent version available at:
 
 Revision history for Perl extension DBD::RAM.
 
+Version 0.042,  17th April, 2000
+
+ * Minor bug fix: typo on use FileHandle (thx Mathew Persico!)
+
 Version 0.041,  15th April, 2000
 
  * Minor bug fix on fixed-width column name reading

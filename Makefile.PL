@@ -1,6 +1,7 @@
 # -*- perl -*-
 
 require 5.004;
+
 use strict;
 use vars qw($DBI_INC_DIR);
 require ExtUtils::MakeMaker;
