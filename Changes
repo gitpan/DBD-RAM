@@ -1,0 +1,74 @@
+DBD::RAM - a DBI driver for in-memory data structures
+
+Documentation and most recent version available at:
+
+    http://www.vpservices.com/jeff/programs/dbd-ram.html
+
+Revision history for Perl extension DBD::RAM.
+
+Version 0.04,  14th April, 2000
+
+* Added ability to handle both in-memory and file-based data.
+  The module now supports flat file databases similarly to the
+  way DBD::CSV does.  Currently CSV files, fixed-width records
+  files, name=value ini files, and XML files are supported.  The
+  XML support is minimal at the moment, included more as 'proof of
+  concept' but will get more robust soon.  Support for HTML, mail
+  files, web logs, and more, also coming soon.  
+
+* Added defaults to the import function so that even quicker
+  and dirtier prototyping is possible.  This now becomes the
+  hands-down DBI golf winner for printing our favorite phrase:
+
+      use DBI;
+      my $dbh = DBI->connect('DBI:RAM:');
+      $dbh->func( [<DATA>], 'import' );
+      print $dbh->selectrow_array('SELECT col2 FROM table1');
+      __END__
+      1,"Hello, new world!",sample
+
+ * Changed the names of the import data types.
+
+ * Added lots more documentation
+
+Version 0.03,  9th March, 2000
+
+ * added an import() data_type "sth" which allows you to open a database
+   handle to any other DBI database, do a prepare/execute for a SELECT 
+   statement into that database and pass the resulting statement handle 
+   to the import() constructor thus importing the results of the SELECT 
+   from the other database into a DBD::RAM table
+
+ * changed the behavior of import() so that it does not overwrite existing
+   tables thus allowing data from multiple data structures to be imported
+   into the same DBD::RAM table (e.g. pull in config files from name=value
+   and fixed-width files and from another DBI database and combine it all
+   into a single in-memory table)
+
+ * made name=value importing smarter so that it can accept embedded equal
+   signs in the value
+
+ * changes and additions to the POD
+
+Version 0.02,  8th March, 2000
+
+ * added capability of processing arrays of hashes, arrays of 
+   name=value pairs, and arrays of fixed-width record strings
+
+ * added capability to pass a user-defined pattern processing method
+   so that users can import any data structures they can parse
+
+ * added a WARNING that, at least for the next week, the module is in
+   a phase of rapid development and that its capabilities, interface,
+   and name might all be changing (suggestions welcome)
+
+ * corrected drop, disconnect, and destroy methods to release memory 
+   appropriately when $dbh goes out of scope and/or tables are
+   dropped
+
+ * expanded documentation
+
+Version 0.01,  7th March, 2000
+
+ * original version; handles in-memory DBI access to arrays of arrays
+
