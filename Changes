@@ -6,19 +6,25 @@ Documentation and most recent version available at:
 
 Revision history for Perl extension DBD::RAM.
 
+Version 0.041,  15th April, 2000
+
+ * Minor bug fix on fixed-width column name reading
+
+ * Minor correction in readme list of prerequisites
+
 Version 0.04,  14th April, 2000
 
-* Added ability to handle both in-memory and file-based data.
-  The module now supports flat file databases similarly to the
-  way DBD::CSV does.  Currently CSV files, fixed-width records
-  files, name=value ini files, and XML files are supported.  The
-  XML support is minimal at the moment, included more as 'proof of
-  concept' but will get more robust soon.  Support for HTML, mail
-  files, web logs, and more, also coming soon.  
+ * Added ability to handle both in-memory and file-based data.
+   The module now supports flat file databases similarly to the
+   way DBD::CSV does.  Currently CSV files, fixed-width records
+   files, name=value ini files, and XML files are supported.  The
+   XML support is minimal at the moment, included more as 'proof of
+   concept' but will get more robust soon.  Support for HTML, mail
+   files, web logs, and more, also coming soon.  
 
-* Added defaults to the import function so that even quicker
-  and dirtier prototyping is possible.  This now becomes the
-  hands-down DBI golf winner for printing our favorite phrase:
+ * Added defaults to the import function so that even quicker
+   and dirtier prototyping is possible.  This now becomes the
+   hands-down DBI golf winner for printing our favorite phrase:
 
       use DBI;
       my $dbh = DBI->connect('DBI:RAM:');

@@ -21,7 +21,8 @@ use strict;
 require DBD::File;
 require SQL::Statement;
 require SQL::Eval;
-use IO::File;
+#use IO::File;
+use Filehandle;
 use Text::ParseWords;
 
 use vars qw($VERSION $err $errstr $sqlstate $drh $ramdata);
@@ -267,7 +268,6 @@ sub read_fields {
     if ($type eq 'CSV') {
         my @fields =  Text::ParseWords::parse_line( ',', 0, $str );
         return @fields;
-#	for (@fields) {print "[$_] ";}
     }
     if ($type eq 'FIX') {
 	return unpack $catalog->{pattern}, $str;
@@ -410,8 +410,8 @@ sub open_table ($$$$$) {
         elsif ( !$createMode ) {
             my $fh = $table->{'fh'};
             my $line = $fh->getline || '';
-            chomp $line;
-            # READ COLUMN NAMES AS CSV EVEN IF FILETYPE IS NOT CSV
+            $line =~ s/[\015\012]//g;
+            # READ COLUMN NAMES AS COMMA-SEPARATED LIST
             @col_names = $dbh->func($line,$tname,'CSV','read_fields');
 	    $table->{first_row_pos} = $fh->tell();
 	}

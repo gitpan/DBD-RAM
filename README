@@ -23,7 +23,8 @@ WHAT ELSE DO I NEED?
      * An operating system that can run DBI
        (unix, linux, mac, windows, many others).
 
-     * Perl and these modules:  DBI, DBD::CSV, SQL::Text.
+     * Perl and these modules:  DBI, DBD::File, SQL::Statement.
+       (DBD::File is part of the DBD::CSV distibution)
 
      Windows users: get Perl and the modules at 
      www.activestate.com.
